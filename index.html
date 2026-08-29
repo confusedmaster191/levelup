@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LevelUp</title>
+<!-- ===== CSS 样式 ===== -->
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg2: #16213e;
+    --card: #22233b;
+    --text: #e6e6f0;
+    --muted: #9a9ab0;
+    --accent: #f0a500;
+    --green: #4ecca3;
+    --red: #e94560;
+    --blue: #5c8aff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 70px; /* 给底部导航留空间 */
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 16px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* 底部导航 */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg2);
+    display: flex;
+    border-top: 1px solid #2a2b4a;
+    z-index: 10;
+  }
+  .tab-btn {
+    flex: 1; padding: 10px 0; background: none; border: none;
+    color: var(--muted); font-size: 14px; cursor: pointer;
+  }
+  .tab-btn.active { color: var(--accent); font-weight: bold; }
+
+  /* 通用卡片 */
+  .card {
+    background: var(--card); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .card h3 { font-size: 16px; margin-bottom: 8px; }
+
+  /* 体力条 */
+  .energy-bar {
+    background: var(--card); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .energy-text { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .energy-bar .num { font-size: 20px; font-weight: bold; color: var(--green); }
+  .energy-bar .label { color: var(--muted); font-size: 13px; }
+
+  /* 任务卡片 */
+  .task-card { display: flex; align-items: center; gap: 10px; }
+  .task-info { flex: 1; }
+  .task-title { font-size: 16px; }
+  .task-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .btn {
+    background: var(--accent); color: #1a1a2e; border: none;
+    border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer;
+  }
+  .btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+  .btn.green { background: var(--green); }
+  .btn.small { padding: 5px 10px; font-size: 13px; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid #444; }
+
+  /* 经验/属性进度条 */
+  .bar { height: 8px; background: #33345a; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .3s; }
+  .bar-fill.exp { background: var(--blue); }
+  .bar-fill.attr { background: var(--accent); }
+
+  .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .attr-name { font-size: 15px; }
+  .attr-val { color: var(--muted); font-size: 13px; }
+
+  /* 商城物品 */
+  .shop-item { display: flex; align-items: center; gap: 10px; }
+  .shop-icon { font-size: 28px; }
+  .shop-info { flex: 1; }
+  .shop-cost { color: var(--accent); font-size: 14px; }
+
+  /* 表单弹窗 */
+  .modal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 20;
+  }
+  .modal.open { display: flex; }
+  .modal-box {
+    background: var(--bg2); border-radius: 12px; padding: 20px;
+    width: 90%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-box h3 { margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select {
+    width: 100%; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid #33345a; background: var(--card); color: var(--text); font-size: 14px;
+  }
+  .field input[type=range] { padding: 0; accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-actions .btn { flex: 1; }
+
+  /* 完成反馈 toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%);
+    background: var(--bg2); color: var(--text); padding: 10px 18px;
+    border-radius: 20px; font-size: 14px; z-index: 30; display: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4); white-space: nowrap; max-width: 90vw;
+  }
+  #toast.show { display: block; }
+
+  /* 统计 */
+  .stat-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2b4a; font-size: 14px; }
+  .stat-item:last-child { border-bottom: none; }
+
+  h2.page-title { font-size: 20px; margin-bottom: 14px; }
+  .section-title { font-size: 15px; color: var(--muted); margin: 18px 0 10px; }
+</style>
+</head>
+<body>
+<main>
+  <!-- ===== 任务页 ===== -->
+  <section id="page-tasks" class="page active">
+    <h2 class="page-title">📋 今日任务</h2>
+    <div class="energy-bar">
+      <div class="energy-text">
+        <span class="label">今日体力</span>
+        <span class="num" id="energy-num">0 / 0</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="energy-fill" style="width:0%;"></div></div>
+    </div>
+    <div class="card">
+      <div class="row"><span>今日活跃度</span><span class="attr-val" id="activity-num">0 / 100</span></div>
+      <div class="bar"><div class="bar-fill" id="activity-fill" style="width:0%;"></div></div>
+      <div id="chest-row" style="display:flex; gap:8px; margin-top:12px;"></div>
+    </div>
+    <div class="card">
+      <div class="row"><span>🔥 连续签到</span><span class="attr-val" id="streak-num">0 天</span></div>
+    </div>
+    <div id="task-list"></div>
+    <button class="btn" id="btn-add-task" style="width:100%; margin-top:8px;">＋ 新增任务</button>
+  </section>
+
+  <!-- ===== 角色页 ===== -->
+  <section id="page-character" class="page">
+    <h2 class="page-title">🧑 我的角色</h2>
+    <div class="card" id="character-card"></div>
+    <div class="section-title">属性面板</div>
+    <div id="attr-list"></div>
+    <button class="btn ghost" id="btn-add-attr" style="width:100%; margin-top:8px;">＋ 新增属性</button>
+  </section>
+
+  <!-- ===== 商城页 ===== -->
+  <section id="page-shop" class="page">
+    <h2 class="page-title">🛒 奖励商城</h2>
+    <div class="card" id="gold-card"></div>
+    <div id="shop-list"></div>
+    <button class="btn" id="btn-add-item" style="width:100%; margin-top:8px;">＋ 新增奖励</button>
+  </section>
+
+  <!-- ===== 统计页 ===== -->
+  <section id="page-stats" class="page">
+    <h2 class="page-title">📊 统计与设置</h2>
+    <div class="card">
+      <h3>最近 7 天</h3>
+      <div id="stats-list"></div>
+    </div>
+    <div class="card">
+      <h3>数据备份</h3>
+      <div class="modal-actions">
+        <button class="btn green" id="btn-export">导出备份</button>
+        <button class="btn ghost" id="btn-import">导入备份</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none;">
+    </div>
+    <div class="card">
+      <h3>设置</h3>
+      <div class="field">
+        <label>每日体力</label>
+        <input type="number" id="set-daily-energy" min="0">
+      </div>
+      <div class="field">
+        <label>属性每几点升 1 级</label>
+        <input type="number" id="set-attr-ppl" min="1">
+      </div>
+      <button class="btn" id="btn-save-settings" style="width:100%;">保存设置</button>
+    </div>
+    <div class="card">
+      <h3>属性 → 体力 规则</h3>
+      <div id="rule-list"></div>
+      <button class="btn small ghost" id="btn-add-rule" style="margin-top:8px;">＋ 新增规则</button>
+    </div>
+  </section>
+
+  <!-- ===== 目标页 ===== -->
+  <section id="page-goals" class="page">
+    <h2 class="page-title">🎯 目标</h2>
+    <div class="section-title">本周目标</div>
+    <div id="weekly-goal-list"></div>
+    <button class="btn ghost" data-add-goal="week" style="width:100%; margin-top:8px;">＋ 新增本周目标</button>
+    <div class="section-title">本学期目标</div>
+    <div id="term-goal-list"></div>
+    <button class="btn ghost" data-add-goal="term" style="width:100%; margin-top:8px;">＋ 新增学期目标</button>
+  </section>
+</main>
+
+<!-- ===== 底部导航 ===== -->
+<nav>
+  <button class="tab-btn active" data-page="tasks">📋 任务</button>
+  <button class="tab-btn" data-page="goals">🎯 目标</button>
+  <button class="tab-btn" data-page="character">🧑 角色</button>
+  <button class="tab-btn" data-page="shop">🛒 商城</button>
+  <button class="tab-btn" data-page="stats">📊 统计</button>
+</nav>
+
+<!-- ===== 通用弹窗（新增任务/物品/规则共用） ===== -->
+<div class="modal" id="modal">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== 数据与存储层 =====
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function uid(prefix) {
+  return prefix + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+// HTML 转义，防止标题里的 < > " 破坏表单
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 初始状态（含示例数据）
+function defaultState() {
+  return {
+    version: 1,
+    settings: {
+      daily_energy: 100,
+      attr_points_per_level: 10,
+      activity_per_task: 10,
+      chest_thresholds: [25, 50, 75, 100],
+      chest_gold: [30, 50, 80, 120],
+      streak_milestones: [[7, 50], [14, 100], [30, 200]]
+    },
+    player: {
+      level: 1, exp: 0, gold: 0, energy: 100, energy_date: todayStr(),
+      activity: 0,
+      chest_claimed: [false, false, false, false],
+      streak: 0,
+      last_checkin: ''
+    },
+    attributes: [
+      { id: 'a_endur', name: '耐力', value: 0 },
+      { id: 'a_skill', name: '技能', value: 0 },
+      { id: 'a_health', name: '健康', value: 0 }
+    ],
+    rules: [
+      { id: 'r_1', type: 'energy_from_attr_level', attr_id: 'a_endur', attr_name: '耐力', per_level: 1, energy_gain: 5 }
+    ],
+    tasks: [
+      { id: 't_run', title: '跑步 5 公里', type: 'daily', energy_cost: 10, gold_reward: 20, exp_reward: 30, attr_id: 'a_endur', attr_gain: 2, completed_dates: [], progress: {}, archived: false },
+      { id: 't_water', title: '喝水 8 杯', type: 'habit', energy_cost: 1, gold_reward: 2, exp_reward: 5, attr_id: 'a_health', attr_gain: 1, completed_dates: [], progress: {}, archived: false },
+      { id: 't_read', title: '读 30 分钟书', type: 'todo', energy_cost: 5, gold_reward: 10, exp_reward: 15, attr_id: 'a_skill', attr_gain: 1, completed_dates: [], progress: {}, archived: false },
+      { id: 't_chest', title: '周一练胸日', type: 'weekly', weekdays: [1], energy_cost: 15, gold_reward: 30, exp_reward: 40, attr_id: 'a_endur', attr_gain: 3, completed_dates: [], progress: {}, archived: false }
+    ],
+    shop_items: [
+      { id: 's_game', title: '玩一局游戏', cost: 100, icon: '🎮', redeemed: 0 },
+      { id: 's_milk', title: '买杯奶茶', cost: 200, icon: '🧋', redeemed: 0 },
+      { id: 's_show', title: '看一集剧', cost: 300, icon: '📺', redeemed: 0 }
+    ],
+    goals: [],
+    history: []
+  };
+}
+
+function saveState(state) {
+  localStorage.setItem('lifeup_state', JSON.stringify(state));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('lifeup_state');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.version === 1) return normalizeState(s);
+    }
+  } catch (e) {}
+  return defaultState();
+}
+
+// 补齐旧数据缺失的新字段，保证加载后结构完整
+function normalizeState(s) {
+  const d = defaultState();
+  for (const k in d.settings) {
+    if (s.settings[k] === undefined) s.settings[k] = d.settings[k];
+  }
+  for (const k in d.player) {
+    if (s.player[k] === undefined) s.player[k] = d.player[k];
+  }
+  if (!Array.isArray(s.tasks)) s.tasks = [];
+  s.tasks.forEach(t => {
+    if (!t.progress) t.progress = {};
+    if (t.type === 'weekly' && !Array.isArray(t.weekdays)) t.weekdays = [];
+  });
+  if (!Array.isArray(s.goals)) s.goals = [];
+  s.goals.forEach(g => {
+    if (g.exp_reward === undefined) g.exp_reward = 0;
+    if (g.gold_reward === undefined) g.gold_reward = 0;
+    if (g.attr_id === undefined) g.attr_id = null;
+    if (g.attr_gain === undefined) g.attr_gain = 0;
+  });
+  if (!Array.isArray(s.attributes)) s.attributes = d.attributes;
+  if (!Array.isArray(s.rules)) s.rules = d.rules;
+  if (!Array.isArray(s.shop_items)) s.shop_items = d.shop_items;
+  if (!Array.isArray(s.history)) s.history = [];
+  return s;
+}
+
+// ===== 核心计算层 =====
+function attrLevel(value, ppl) {
+  return Math.floor(value / ppl);
+}
+
+function expToNext(level) {
+  return 100 * level;
+}
+
+// 当日体力上限 = 基础值 + 规则加成
+function energyCap(state) {
+  let cap = state.settings.daily_energy;
+  for (const r of state.rules) {
+    if (r.type === 'energy_from_attr_level') {
+      const attr = state.attributes.find(a => a.id === r.attr_id);
+      if (attr) {
+        const lvl = attrLevel(attr.value, state.settings.attr_points_per_level);
+        cap += Math.floor(lvl / r.per_level) * r.energy_gain;
+      }
+    }
+  }
+  return cap;
+}
+
+// 跨天重置体力、活跃度、宝箱
+function refreshEnergy(state) {
+  const today = todayStr();
+  if (state.player.energy_date !== today) {
+    state.player.energy = energyCap(state);
+    state.player.energy_date = today;
+    state.player.activity = 0;
+    state.player.chest_claimed = state.settings.chest_thresholds.map(() => false);
+    return true;
+  }
+  return false;
+}
+
+// 连续签到判定（每天首次完成任务时调用）
+function checkIn(state) {
+  const today = todayStr();
+  if (state.player.last_checkin === today) return { checked: false, streak: state.player.streak, reward: 0 };
+  const y = new Date(Date.now() - 86400000);
+  const ystr = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+  if (state.player.last_checkin === ystr) {
+    state.player.streak += 1;
+  } else {
+    state.player.streak = 1;
+  }
+  state.player.last_checkin = today;
+  let reward = 0;
+  const m = state.settings.streak_milestones.find(x => x[0] === state.player.streak);
+  if (m) { reward = m[1]; state.player.gold += reward; }
+  return { checked: true, streak: state.player.streak, reward: reward };
+}
+
+// 领取活跃度宝箱
+function claimChest(state, index) {
+  const th = state.settings.chest_thresholds[index];
+  if (th === undefined) return null;
+  if (state.player.chest_claimed[index]) return null;
+  if (state.player.activity < th) return null;
+  state.player.chest_claimed[index] = true;
+  const gold = state.settings.chest_gold[index] || 0;
+  state.player.gold += gold;
+  saveState(state);
+  return { gold: gold };
+}
+
+// 加经验，处理连续升级
+function gainExp(state, amount) {
+  state.player.exp += amount;
+  let leveledUp = false;
+  while (state.player.exp >= expToNext(state.player.level)) {
+    state.player.exp -= expToNext(state.player.level);
+    state.player.level++;
+    leveledUp = true;
+  }
+  return { leveledUp: leveledUp, newLevel: state.player.level };
+}
+
+// 进度键：每日任务按日期，待办任务只有一个累计进度
+function progressKey(task, dateStr) {
+  return task.type === 'todo' ? '_once' : dateStr;
+}
+
+// 任务今天是否还可继续完成（未满 100%）
+function canDoTask(task, dateStr) {
+  if (task.type === 'habit') return true;
+  return (task.progress[progressKey(task, dateStr)] || 0) < 100;
+}
+
+// 根据本次完成百分比计算实际奖励（不做状态修改）
+function calcCompletion(task, pct, dateStr) {
+  let delta = Math.max(0, Math.min(100, pct));
+  if (task.type !== 'habit') {
+    const cur = task.progress[progressKey(task, dateStr)] || 0;
+    delta = Math.max(0, Math.min(delta, 100 - cur)); // 最多补到 100%
+  }
+  const scale = delta / 100;
+  return {
+    delta: delta,
+    scale: scale,
+    energy: Math.round((task.energy_cost || 0) * scale),
+    gold: Math.round((task.gold_reward || 0) * scale),
+    exp: Math.round((task.exp_reward || 0) * scale),
+    attrGain: Math.round((task.attr_gain || 0) * scale)
+  };
+}
+
+// 打卡核心流程（pct 为本次完成百分比 0-100）
+function completeTask(state, taskId, pct) {
+  refreshEnergy(state);
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return { done: false };
+  const today = todayStr();
+  if (!canDoTask(task, today)) return { done: false };
+
+  const c = calcCompletion(task, pct, today);
+  if (c.delta <= 0) return { done: false, reason: 'full' };
+
+  // 记录完成进度
+  if (task.type === 'habit') {
+    task.completed_dates.push(today);
+  } else {
+    const key = progressKey(task, today);
+    task.progress[key] = (task.progress[key] || 0) + c.delta;
+    if (task.progress[key] >= 100) task.completed_dates.push(today);
+  }
+
+  let degraded = false;
+  if (state.player.energy >= c.energy) {
+    state.player.energy -= c.energy;
+    state.player.gold += c.gold;
+  } else {
+    degraded = true; // 体力不足，只给经验不给金币
+  }
+
+  const lv = gainExp(state, c.exp);
+
+  if (task.attr_id) {
+    const attr = state.attributes.find(a => a.id === task.attr_id);
+    if (attr) attr.value += c.attrGain;
+  }
+
+  state.history.push({
+    date: today,
+    task_id: task.id,
+    gold: degraded ? 0 : c.gold,
+    exp: c.exp,
+    energy: -c.energy,
+    degraded: degraded,
+    attr_id: task.attr_id || null,
+    attr_gain: c.attrGain
+  });
+
+  const ci = checkIn(state);
+  state.player.activity += Math.round((state.settings.activity_per_task || 10) * c.scale);
+
+  saveState(state);
+  return { done: true, degraded: degraded, leveledUp: lv.leveledUp, checkin: ci, delta: c.delta, gold: degraded ? 0 : c.gold, exp: c.exp, attrGain: c.attrGain };
+}
+
+// 完成程度选择弹窗
+function showCompleteModal(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const today = todayStr();
+  const cur = task.type === 'habit' ? 0 : (task.progress[progressKey(task, today)] || 0);
+  const attrName = task.attr_id ? (state.attributes.find(a => a.id === task.attr_id) || {}).name : '';
+  openModal(
+    '<h3>' + esc(task.title) + '</h3>' +
+    (cur > 0 ? '<div class="field" style="color:var(--muted);">当前已完成 ' + cur + '%</div>' : '') +
+    '<div class="field"><label>本次完成：<span id="pct-label" style="color:var(--accent);">100%</span></label>' +
+    '<input type="range" id="f-pct" min="1" max="100" value="100" step="1"></div>' +
+    '<div class="field" id="preview" style="color:var(--muted);font-size:13px;"></div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-done">' + (task.type === 'habit' ? '打卡' : '完成') + '</button></div>'
+  );
+  const slider = $('#f-pct');
+  const label = $('#pct-label');
+  const preview = $('#preview');
+  function refreshPreview() {
+    const pct = Number(slider.value);
+    const c = calcCompletion(task, pct, today);
+    label.textContent = pct + '%';
+    let parts = ['体力-' + c.energy, '金币+' + c.gold, '经验+' + c.exp];
+    if (attrName) parts.push(attrName + '+' + c.attrGain);
+    let txt = '本次完成 +' + c.delta + '%：' + parts.join(' · ');
+    if (c.delta < pct) txt += '（已达 100%，超出部分不计）';
+    preview.textContent = txt;
+  }
+  slider.addEventListener('input', refreshPreview);
+  refreshPreview();
+  $('#f-done').onclick = function () {
+    const pct = Number(slider.value);
+    const r = completeTask(state, taskId, pct);
+    closeModal();
+    if (!r.done) { alert('该任务今天已经完成啦'); return; }
+    const attrName = task.attr_id ? (state.attributes.find(a => a.id === task.attr_id) || {}).name : '';
+    const parts = [];
+    if (r.degraded) parts.push('体力不足，仅得经验');
+    else parts.push('金币+' + r.gold);
+    parts.push('经验+' + r.exp);
+    if (attrName && r.attrGain) parts.push(attrName + '+' + r.attrGain);
+    showToast('完成！' + parts.join(' · '));
+    render();
+  };
+}
+
+// ===== 渲染层 =====
+let state = loadState();
+let currentPage = 'tasks';
+let doneCollapsed = true; // 已完成折叠区默认收起
+let offdayCollapsed = true; // 「今天不做」折叠区默认收起
+
+function $(sel) { return document.querySelector(sel); }
+
+function render() {
+  refreshEnergy(state);
+  // 切换页签显示
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  $('#page-' + currentPage).classList.add('active');
+  // 导航高亮
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === currentPage);
+  });
+  // 各页渲染
+  renderTasks();
+  renderCharacter();
+  renderShop();
+  renderStats();
+  renderGoals();
+  updateEnergyDisplay();
+  renderActivity();
+}
+
+function updateEnergyDisplay() {
+  const cap = energyCap(state);
+  const pct = cap > 0 ? Math.round(state.player.energy / cap * 100) : 0;
+  $('#energy-num').textContent = state.player.energy + ' / ' + cap;
+  const fill = document.getElementById('energy-fill');
+  if (fill) fill.style.width = pct + '%';
+}
+
+// 活跃度 + 宝箱 + 签到渲染
+function renderActivity() {
+  const p = state.player;
+  const th = state.settings.chest_thresholds;
+  const max = th[th.length - 1] || 100;
+  const pct = max > 0 ? Math.min(100, Math.round(p.activity / max * 100)) : 0;
+  const an = document.getElementById('activity-num');
+  if (an) an.textContent = p.activity + ' / ' + max;
+  const af = document.getElementById('activity-fill');
+  if (af) af.style.width = pct + '%';
+
+  const cr = document.getElementById('chest-row');
+  if (cr) {
+    cr.innerHTML = '';
+    for (let i = 0; i < th.length; i++) {
+      const claimed = p.chest_claimed[i];
+      const reachable = p.activity >= th[i];
+      const gold = state.settings.chest_gold[i] || 0;
+      const btn = document.createElement('button');
+      btn.className = 'btn small ' + (claimed ? 'ghost' : '');
+      btn.textContent = claimed ? '已领' : (reachable ? '🎁 ' + th[i] + ' (' + gold + '🪙)' : '🔒 ' + th[i]);
+      btn.disabled = claimed || !reachable;
+      btn.dataset.chestIndex = i;
+      btn.style.flex = '1';
+      cr.appendChild(btn);
+    }
+  }
+
+  const sn = document.getElementById('streak-num');
+  if (sn) sn.textContent = p.streak + ' 天';
+}
+
+// 星期几标签（getDay()：0=周日 … 6=周六）
+const WD_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+// 任务页
+function renderTasks() {
+  const list = $('#task-list');
+  list.innerHTML = '';
+  const today = todayStr();
+  const dow = new Date().getDay();
+  const active = [];
+  const done = [];
+  const offday = [];
+  for (const t of state.tasks) {
+    if (t.archived) continue;
+    if (t.type === 'habit') { active.push(t); continue; }
+    const key = progressKey(t, today);
+    const isDone = (t.progress[key] || 0) >= 100;
+    if (t.type === 'weekly' && !(t.weekdays || []).includes(dow)) {
+      if (isDone) done.push(t); else offday.push(t);
+      continue;
+    }
+    if (isDone) done.push(t);
+    else active.push(t);
+  }
+
+  if (active.length === 0) {
+    list.innerHTML = '<div class="card" style="color:var(--muted);text-align:center;">今天没有待办任务，点下方按钮新增</div>';
+  } else {
+    for (const t of active) list.appendChild(taskCard(t, today, false, false));
+  }
+
+  if (done.length > 0) {
+    list.appendChild(foldToggle('done', '已完成', done.length));
+    const wrap = document.createElement('div');
+    wrap.id = 'done-list';
+    wrap.style.display = doneCollapsed ? 'none' : '';
+    for (const t of done) wrap.appendChild(taskCard(t, today, true, false));
+    list.appendChild(wrap);
+  }
+
+  if (offday.length > 0) {
+    list.appendChild(foldToggle('offday', '今天不做', offday.length));
+    const wrap = document.createElement('div');
+    wrap.id = 'offday-list';
+    wrap.style.display = offdayCollapsed ? 'none' : '';
+    for (const t of offday) wrap.appendChild(taskCard(t, today, false, true));
+    list.appendChild(wrap);
+  }
+}
+
+// 折叠条按钮（done=已完成区，offday=今天不做区）
+function foldToggle(kind, label, count) {
+  const collapsed = kind === 'offday' ? offdayCollapsed : doneCollapsed;
+  const toggle = document.createElement('button');
+  toggle.className = 'btn ghost';
+  toggle.style.cssText = 'width:100%; margin-top:8px;';
+  toggle.dataset.foldToggle = kind;
+  toggle.textContent = label + ' (' + count + ') ' + (collapsed ? '▸' : '▾');
+  return toggle;
+}
+
+// 类型标签（每周任务显示具体星期几）
+function taskTypeTag(t) {
+  if (t.type === 'weekly') {
+    const days = (t.weekdays || []).slice().sort(function (a, b) { return a - b; }).map(function (d) { return WD_LABELS[d]; });
+    return days.length ? '每周 ' + days.join('/') : '每周';
+  }
+  return { daily: '每日', habit: '习惯', todo: '待办' }[t.type];
+}
+
+// 单个任务卡片（isDone=已完成不显示完成按钮；offday=今天不做的每周任务）
+function taskCard(t, today, isDone, offday) {
+  let doneText = '';
+  let color = 'var(--green)';
+  if (t.type === 'habit') {
+    const count = t.completed_dates.filter(d => d === today).length;
+    doneText = count > 0 ? '今日已打卡 ' + count + ' 次' : '今日未打卡';
+  } else if (offday) {
+    doneText = '今天不做';
+    color = 'var(--muted)';
+  } else if (isDone) {
+    doneText = '已完成';
+    color = 'var(--muted)';
+  } else {
+    const key = progressKey(t, today);
+    const p = t.progress[key] || 0;
+    doneText = p > 0 ? '进行中 ' + p + '%' : (t.type === 'todo' ? '待办' : '未完成');
+  }
+  const typeTag = taskTypeTag(t);
+  const attrName = t.attr_id ? (state.attributes.find(a => a.id === t.attr_id) || {}).name : '';
+  const card = document.createElement('div');
+  card.className = 'card task-card';
+  card.innerHTML =
+    '<div class="task-info">' +
+      '<div class="task-title">' + esc(t.title) + ' <span style="color:var(--muted);font-size:12px;">[' + typeTag + ']</span></div>' +
+      '<div class="task-meta">体力-'+t.energy_cost+' · 金币+'+t.gold_reward+' · 经验+'+t.exp_reward+(attrName ? ' · '+attrName+'+'+t.attr_gain : '')+'</div>' +
+      '<div class="task-meta" style="color:'+color+';">'+doneText+'</div>' +
+    '</div>' +
+    (isDone ? '' : '<button class="btn small" data-task-id="'+t.id+'">'+(t.type==='habit'?'打卡':'完成')+'</button>') +
+    '<button class="btn small ghost" data-task-edit="'+t.id+'" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
+    '<button class="btn small ghost" data-task-del="'+t.id+'" style="padding:5px 8px;margin-left:4px;">✕</button>';
+  return card;
+}
+
+// 角色页
+function renderCharacter() {
+  const p = state.player;
+  const cap = energyCap(state);
+  const next = expToNext(p.level);
+  const expPct = Math.min(100, Math.round(p.exp / next * 100));
+  $('#character-card').innerHTML =
+    '<div class="row"><span>等级</span><span style="font-size:22px;font-weight:bold;color:var(--accent);">Lv.'+p.level+'</span></div>' +
+    '<div class="row"><span>经验</span><span class="attr-val">'+p.exp+' / '+next+'</span></div>' +
+    '<div class="bar" style="margin-bottom:12px;"><div class="bar-fill exp" style="width:'+expPct+'%;"></div></div>' +
+    '<div class="row"><span>金币</span><span style="color:var(--accent);font-weight:bold;">🪙 '+p.gold+'</span></div>' +
+    '<div class="row"><span>体力</span><span class="attr-val">'+p.energy+' / '+cap+'</span></div>';
+
+  const al = $('#attr-list');
+  al.innerHTML = '';
+  const ppl = state.settings.attr_points_per_level;
+  for (const a of state.attributes) {
+    const lvl = attrLevel(a.value, ppl);
+    const remain = a.value % ppl;
+    const pct = Math.round(remain / ppl * 100);
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML =
+      '<div class="row"><span class="attr-name">'+a.name+'</span><span class="attr-val">'+lvl+' 级（'+remain+'/'+ppl+'） <button class="btn small ghost" data-attr-edit="'+a.id+'" style="padding:2px 6px;margin-left:6px;">✏️</button><button class="btn small ghost" data-attr-del="'+a.id+'" style="padding:2px 6px;margin-left:6px;">✕</button></span></div>' +
+      '<div class="bar"><div class="bar-fill attr" style="width:'+pct+'%;"></div></div>';
+    al.appendChild(div);
+  }
+}
+
+// 商城页
+function renderShop() {
+  $('#gold-card').innerHTML = '<div class="row"><span>我的金币</span><span style="color:var(--accent);font-weight:bold;font-size:20px;">🪙 '+state.player.gold+'</span></div>';
+  const list = $('#shop-list');
+  list.innerHTML = '';
+  if (state.shop_items.length === 0) {
+    list.innerHTML = '<div class="card" style="color:var(--muted);text-align:center;">还没有奖励，点下方按钮新增</div>';
+    return;
+  }
+  for (const s of state.shop_items) {
+    const afford = state.player.gold >= s.cost;
+    const div = document.createElement('div');
+    div.className = 'card shop-item';
+    div.innerHTML =
+      '<div class="shop-icon">'+s.icon+'</div>' +
+      '<div class="shop-info"><div>'+s.title+'</div><div class="shop-cost">🪙 '+s.cost+' · 已兑换 '+s.redeemed+' 次</div></div>' +
+      '<button class="btn small" data-item-id="'+s.id+'" '+(afford?'':'disabled')+'>兑换</button>' +
+      '<button class="btn small ghost" data-item-edit="'+s.id+'" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
+      '<button class="btn small ghost" data-item-del="'+s.id+'" style="padding:5px 8px;margin-left:4px;">✕</button>';
+    list.appendChild(div);
+  }
+}
+
+// 统计页
+function renderStats() {
+  const list = $('#stats-list');
+  list.innerHTML = '';
+  // 汇总最近 7 天
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    days.push(y + '-' + m + '-' + day);
+  }
+  for (const day of days) {
+    const recs = state.history.filter(h => h.date === day);
+    const expSum = recs.reduce((s, r) => s + r.exp, 0);
+    const goldSum = recs.reduce((s, r) => s + r.gold, 0);
+    const div = document.createElement('div');
+    div.className = 'stat-item';
+    div.innerHTML = '<span>'+day+'</span><span>'+recs.length+' 次 · 经验+'+expSum+' · 金币+'+goldSum+'</span>';
+    list.appendChild(div);
+  }
+
+  // 设置表单回填
+  $('#set-daily-energy').value = state.settings.daily_energy;
+  $('#set-attr-ppl').value = state.settings.attr_points_per_level;
+
+  // 规则列表
+  const rl = $('#rule-list');
+  rl.innerHTML = '';
+  for (const r of state.rules) {
+    const div = document.createElement('div');
+    div.className = 'stat-item';
+    div.innerHTML = '<span>'+r.attr_name+' 每 '+r.per_level+' 级 → 体力 +'+r.energy_gain+'</span><button class="btn small ghost" data-rule-id="'+r.id+'">删除</button>';
+    rl.appendChild(div);
+  }
+}
+
+// 目标页
+function renderGoals() {
+  const renderList = function (el, period, emptyText) {
+    el.innerHTML = '';
+    const items = state.goals.filter(g => g.period === period);
+    if (items.length === 0) {
+      el.innerHTML = '<div class="card" style="color:var(--muted);text-align:center;">' + emptyText + '</div>';
+      return;
+    }
+    for (const g of items) {
+      const attrName = g.attr_id ? (state.attributes.find(a => a.id === g.attr_id) || {}).name : '';
+      const div = document.createElement('div');
+      div.className = 'card task-card';
+      div.innerHTML =
+        '<label class="task-info" style="display:flex;align-items:center;gap:8px;">' +
+          '<input type="checkbox" data-goal-done="' + g.id + '" ' + (g.done ? 'checked' : '') + ' style="width:18px;height:18px;flex:none;">' +
+          '<span style="flex:1;">' +
+            '<span class="task-title" style="' + (g.done ? 'text-decoration:line-through;color:var(--muted);' : '') + '">' + esc(g.title) + '</span>' +
+            '<div class="task-meta">金币+' + (g.gold_reward || 0) + ' · 经验+' + (g.exp_reward || 0) + (attrName ? ' · ' + attrName + '+' + (g.attr_gain || 0) : '') + '</div>' +
+          '</span>' +
+        '</label>' +
+        '<button class="btn small ghost" data-goal-edit="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
+        '<button class="btn small ghost" data-goal-del="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✕</button>';
+      el.appendChild(div);
+    }
+  };
+  renderList($('#weekly-goal-list'), 'week', '还没有本周目标');
+  renderList($('#term-goal-list'), 'term', '还没有学期目标');
+}
+
+// 目标表单（新增 / 编辑）
+function showGoalForm(period, goalId) {
+  const goal = goalId ? state.goals.find(g => g.id === goalId) : null;
+  const attrOptions = state.attributes.map(a => '<option value="'+a.id+'">'+a.name+'</option>').join('');
+  openModal(
+    '<h3>' + (goal ? '编辑目标' : (period === 'week' ? '新增本周目标' : '新增学期目标')) + '</h3>' +
+    '<div class="field"><label>目标内容</label><input id="f-title" placeholder="如：本周跑步 3 次" value="'+esc(goal ? goal.title : '')+'"></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>金币奖励</label><input id="f-gold" type="number" value="'+(goal ? goal.gold_reward : 30)+'" min="0"></div>' +
+      '<div class="field"><label>经验奖励</label><input id="f-exp" type="number" value="'+(goal ? goal.exp_reward : 50)+'" min="0"></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>关联属性</label><select id="f-attr"><option value="">（无）</option>'+attrOptions+'</select></div>' +
+      '<div class="field"><label>属性加点</label><input id="f-attr-gain" type="number" value="'+(goal ? goal.attr_gain : 1)+'" min="0"></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">保存</button></div>'
+  );
+  if (goal && goal.attr_id) $('#f-attr').value = goal.attr_id;
+  $('#f-submit').onclick = function () {
+    const title = $('#f-title').value.trim();
+    if (!title) { alert('请填写目标内容'); return; }
+    const data = {
+      title: title,
+      gold_reward: Number($('#f-gold').value) || 0,
+      exp_reward: Number($('#f-exp').value) || 0,
+      attr_id: $('#f-attr').value || null,
+      attr_gain: Number($('#f-attr-gain').value) || 0
+    };
+    if (goal) {
+      Object.assign(goal, data);
+    } else {
+      state.goals.push(Object.assign({ id: uid('g'), period: period, done: false }, data));
+    }
+    saveState(state);
+    closeModal();
+    render();
+  };
+}
+
+// ===== 弹窗 =====
+function openModal(html) {
+  $('#modal-box').innerHTML = html;
+  $('#modal').classList.add('open');
+}
+function closeModal() {
+  $('#modal').classList.remove('open');
+}
+
+// 完成反馈 toast
+let toastTimer = null;
+function showToast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+}
+
+// 任务表单（新增 / 编辑）
+function showTaskForm(taskId) {
+  const task = taskId ? state.tasks.find(t => t.id === taskId) : null;
+  const attrOptions = state.attributes.map(a => '<option value="'+a.id+'">'+a.name+'</option>').join('');
+  const opt = function (v, cur) { return v === cur ? ' selected' : ''; };
+  const selDays = (task && task.weekdays) || [];
+  const weekdayBoxes = WD_LABELS.map(function (n, i) {
+    return '<label style="display:flex;align-items:center;gap:3px;">' +
+      '<input type="checkbox" class="f-wd" value="'+i+'"'+(selDays.includes(i) ? ' checked' : '')+'>周'+n+'</label>';
+  }).join('');
+  openModal(
+    '<h3>'+(task ? '编辑任务' : '新增任务')+'</h3>' +
+    '<div class="field"><label>标题</label><input id="f-title" placeholder="如：跑步 5 公里" value="'+esc(task ? task.title : '')+'"></div>' +
+    '<div class="field"><label>类型</label><select id="f-type"><option value="daily"'+opt('daily', task && task.type)+'>每日</option><option value="habit"'+opt('habit', task && task.type)+'>习惯（可多次）</option><option value="todo"'+opt('todo', task && task.type)+'>待办（一次性）</option><option value="weekly"'+opt('weekly', task && task.type)+'>每周固定（选周几做）</option></select></div>' +
+    '<div class="field" id="f-weekdays-row" style="display:none;"><label>选择星期几</label>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+weekdayBoxes+'</div></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>消耗体力</label><input id="f-energy" type="number" value="'+(task ? task.energy_cost : 5)+'" min="0"></div>' +
+      '<div class="field"><label>金币奖励</label><input id="f-gold" type="number" value="'+(task ? task.gold_reward : 10)+'" min="0"></div>' +
+      '<div class="field"><label>经验奖励</label><input id="f-exp" type="number" value="'+(task ? task.exp_reward : 10)+'" min="0"></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>关联属性</label><select id="f-attr"><option value="">（无）</option>'+attrOptions+'</select></div>' +
+      '<div class="field"><label>属性加点</label><input id="f-attr-gain" type="number" value="'+(task ? task.attr_gain : 1)+'" min="0"></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">保存</button></div>'
+  );
+  if (task && task.attr_id) $('#f-attr').value = task.attr_id;
+  if (task && task.type === 'weekly') $('#f-weekdays-row').style.display = '';
+  $('#f-type').addEventListener('change', function () {
+    $('#f-weekdays-row').style.display = this.value === 'weekly' ? '' : 'none';
+  });
+  $('#f-submit').onclick = function () {
+    const title = $('#f-title').value.trim();
+    if (!title) { alert('请填写标题'); return; }
+    const type = $('#f-type').value;
+    const data = {
+      title: title,
+      type: type,
+      weekdays: type === 'weekly' ? Array.from(document.querySelectorAll('.f-wd:checked')).map(function (x) { return Number(x.value); }) : [],
+      energy_cost: Number($('#f-energy').value) || 0,
+      gold_reward: Number($('#f-gold').value) || 0,
+      exp_reward: Number($('#f-exp').value) || 0,
+      attr_id: $('#f-attr').value || null,
+      attr_gain: Number($('#f-attr-gain').value) || 0
+    };
+    if (task) {
+      Object.assign(task, data);
+    } else {
+      state.tasks.push(Object.assign({ id: uid('t'), completed_dates: [], progress: {}, archived: false }, data));
+    }
+    saveState(state);
+    closeModal();
+    render();
+  };
+}
+
+// 奖励物品表单（新增 / 编辑）
+function showItemForm(itemId) {
+  const item = itemId ? state.shop_items.find(s => s.id === itemId) : null;
+  openModal(
+    '<h3>'+(item ? '编辑奖励' : '新增奖励')+'</h3>' +
+    '<div class="field"><label>标题</label><input id="f-title" placeholder="如：玩一局游戏" value="'+esc(item ? item.title : '')+'"></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>价格（金币）</label><input id="f-cost" type="number" value="'+(item ? item.cost : 100)+'" min="1"></div>' +
+      '<div class="field"><label>图标（emoji）</label><input id="f-icon" value="'+esc(item ? item.icon : '🎁')+'"></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">保存</button></div>'
+  );
+  $('#f-submit').onclick = function () {
+    const title = $('#f-title').value.trim();
+    if (!title) { alert('请填写标题'); return; }
+    const data = {
+      title: title,
+      cost: Number($('#f-cost').value) || 1,
+      icon: $('#f-icon').value || '🎁'
+    };
+    if (item) {
+      Object.assign(item, data);
+    } else {
+      state.shop_items.push(Object.assign({ id: uid('s'), redeemed: 0 }, data));
+    }
+    saveState(state);
+    closeModal();
+    render();
+  };
+}
+
+// 属性表单（新增 / 编辑）
+function showAttrForm(attrId) {
+  const attr = attrId ? state.attributes.find(a => a.id === attrId) : null;
+  openModal(
+    '<h3>'+(attr ? '编辑属性' : '新增属性')+'</h3>' +
+    '<div class="field"><label>属性名称</label><input id="f-name" placeholder="如：专注、社交、体力" value="'+esc(attr ? attr.name : '')+'"></div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">保存</button></div>'
+  );
+  $('#f-submit').onclick = function () {
+    const name = $('#f-name').value.trim();
+    if (!name) { alert('请填写属性名称'); return; }
+    if (attr) {
+      attr.name = name;
+      // 同步规则里引用到的属性名称
+      state.rules.forEach(r => { if (r.attr_id === attr.id) r.attr_name = name; });
+    } else {
+      state.attributes.push({ id: uid('a'), name: name, value: 0 });
+    }
+    saveState(state);
+    closeModal();
+    render();
+  };
+}
+
+// 新增规则表单
+function showAddRuleForm() {
+  const attrOptions = state.attributes.map(a => '<option value="'+a.id+'">'+a.name+'</option>').join('');
+  openModal(
+    '<h3>新增规则</h3>' +
+    '<div class="field"><label>属性</label><select id="f-attr">'+attrOptions+'</select></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>每升几级</label><input id="f-per" type="number" value="1" min="1"></div>' +
+      '<div class="field"><label>体力加成</label><input id="f-gain" type="number" value="5" min="1"></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">保存</button></div>'
+  );
+  $('#f-submit').onclick = function () {
+    const attrId = $('#f-attr').value;
+    const attr = state.attributes.find(a => a.id === attrId);
+    state.rules.push({
+      id: uid('r'),
+      type: 'energy_from_attr_level',
+      attr_id: attrId,
+      attr_name: attr.name,
+      per_level: Number($('#f-per').value) || 1,
+      energy_gain: Number($('#f-gain').value) || 0
+    });
+    saveState(state);
+    closeModal();
+    render();
+  };
+}
+
+// ===== 事件绑定 =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    currentPage = this.dataset.page;
+    render();
+  });
+});
+
+$('#btn-add-task').addEventListener('click', function () { showTaskForm(); });
+$('#btn-add-item').addEventListener('click', function () { showItemForm(); });
+$('#btn-add-rule').addEventListener('click', showAddRuleForm);
+$('#btn-add-attr').addEventListener('click', function () { showAttrForm(); });
+
+// 目标：新增 / 勾选 / 删除
+document.querySelectorAll('[data-add-goal]').forEach(b => {
+  b.addEventListener('click', function () { showGoalForm(this.dataset.addGoal); });
+});
+// 目标完成/取消：发/收奖励（不耗体力、不触发签到与活跃度）
+function completeGoal(goalId, done) {
+  const g = state.goals.find(x => x.id === goalId);
+  if (!g || g.done === done) return;
+  g.done = done;
+  const attr = g.attr_id ? state.attributes.find(a => a.id === g.attr_id) : null;
+  if (done) {
+    state.player.gold += (g.gold_reward || 0);
+    gainExp(state, g.exp_reward || 0);
+    if (attr) attr.value += (g.attr_gain || 0);
+    state.history.push({
+      date: todayStr(),
+      task_id: g.id,
+      gold: g.gold_reward || 0,
+      exp: g.exp_reward || 0,
+      energy: 0,
+      degraded: false,
+      attr_id: g.attr_id || null,
+      attr_gain: g.attr_gain || 0
+    });
+  } else {
+    state.player.gold = Math.max(0, state.player.gold - (g.gold_reward || 0));
+    state.player.exp = Math.max(0, state.player.exp - (g.exp_reward || 0));
+    if (attr) attr.value = Math.max(0, attr.value - (g.attr_gain || 0));
+    state.history = state.history.filter(h => h.task_id !== g.id);
+  }
+  saveState(state);
+}
+
+function handleGoalClick(e) {
+  const done = e.target.closest('[data-goal-done]');
+  if (done) {
+    const g = state.goals.find(x => x.id === done.dataset.goalDone);
+    completeGoal(done.dataset.goalDone, done.checked);
+    if (g && done.checked) {
+      const attrName = g.attr_id ? (state.attributes.find(a => a.id === g.attr_id) || {}).name : '';
+      const parts = ['金币+' + (g.gold_reward || 0), '经验+' + (g.exp_reward || 0)];
+      if (attrName && g.attr_gain) parts.push(attrName + '+' + g.attr_gain);
+      showToast('目标完成！' + parts.join(' · '));
+    }
+    render();
+    return;
+  }
+  const edit = e.target.closest('[data-goal-edit]');
+  if (edit) {
+    const g = state.goals.find(x => x.id === edit.dataset.goalEdit);
+    if (g) showGoalForm(g.period, g.id);
+    return;
+  }
+  const del = e.target.closest('[data-goal-del]');
+  if (del) {
+    if (confirm('删除这个目标？')) {
+      state.goals = state.goals.filter(x => x.id !== del.dataset.goalDel);
+      saveState(state);
+      render();
+    }
+    return;
+  }
+}
+$('#weekly-goal-list').addEventListener('click', handleGoalClick);
+$('#term-goal-list').addEventListener('click', handleGoalClick);
+
+// 任务打卡 / 删除（事件委托）
+$('#task-list').addEventListener('click', function (e) {
+  const toggle = e.target.closest('[data-fold-toggle]');
+  if (toggle) {
+    if (toggle.dataset.foldToggle === 'offday') offdayCollapsed = !offdayCollapsed;
+    else doneCollapsed = !doneCollapsed;
+    renderTasks();
+    return;
+  }
+  const delBtn = e.target.closest('[data-task-del]');
+  if (delBtn) {
+    if (confirm('确定删除这个任务？')) {
+      state.tasks = state.tasks.filter(t => t.id !== delBtn.dataset.taskDel);
+      saveState(state);
+      render();
+    }
+    return;
+  }
+  const editBtn = e.target.closest('[data-task-edit]');
+  if (editBtn) { showTaskForm(editBtn.dataset.taskEdit); return; }
+  const btn = e.target.closest('[data-task-id]');
+  if (!btn) return;
+  showCompleteModal(btn.dataset.taskId);
+});
+
+// 活跃度宝箱领取（事件委托）
+$('#chest-row').addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-chest-index]');
+  if (!btn) return;
+  const r = claimChest(state, Number(btn.dataset.chestIndex));
+  if (r) { alert('开宝箱获得 ' + r.gold + ' 金币！'); render(); }
+});
+
+// 商城兑换 / 删除（事件委托）
+$('#shop-list').addEventListener('click', function (e) {
+  const delBtn = e.target.closest('[data-item-del]');
+  if (delBtn) {
+    if (confirm('确定删除这个奖励？')) {
+      state.shop_items = state.shop_items.filter(s => s.id !== delBtn.dataset.itemDel);
+      saveState(state);
+      render();
+    }
+    return;
+  }
+  const editBtn = e.target.closest('[data-item-edit]');
+  if (editBtn) { showItemForm(editBtn.dataset.itemEdit); return; }
+  const btn = e.target.closest('[data-item-id]');
+  if (!btn) return;
+  const item = state.shop_items.find(s => s.id === btn.dataset.itemId);
+  if (item && state.player.gold >= item.cost) {
+    state.player.gold -= item.cost;
+    item.redeemed++;
+    saveState(state);
+    render();
+  }
+});
+
+// 属性删除（事件委托，顺带清理关联的任务和规则）
+$('#attr-list').addEventListener('click', function (e) {
+  const editBtn = e.target.closest('[data-attr-edit]');
+  if (editBtn) { showAttrForm(editBtn.dataset.attrEdit); return; }
+  const delBtn = e.target.closest('[data-attr-del]');
+  if (!delBtn) return;
+  const id = delBtn.dataset.attrDel;
+  const attr = state.attributes.find(a => a.id === id);
+  if (!attr) return;
+  const taskRefs = state.tasks.filter(t => t.attr_id === id).length;
+  const ruleRefs = state.rules.filter(r => r.attr_id === id).length;
+  const warn = (taskRefs || ruleRefs) ? '（有 ' + taskRefs + ' 个任务、' + ruleRefs + ' 条规则关联，删除后关联会被清除）' : '';
+  if (confirm('确定删除属性「' + attr.name + '」？' + warn)) {
+    state.attributes = state.attributes.filter(a => a.id !== id);
+    state.tasks.forEach(t => { if (t.attr_id === id) t.attr_id = null; });
+    state.rules = state.rules.filter(r => r.attr_id !== id);
+    saveState(state);
+    render();
+  }
+});
+
+// 规则删除（事件委托）
+$('#rule-list').addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-rule-id]');
+  if (!btn) return;
+  state.rules = state.rules.filter(r => r.id !== btn.dataset.ruleId);
+  saveState(state);
+  render();
+});
+
+// 设置保存
+$('#btn-save-settings').addEventListener('click', function () {
+  state.settings.daily_energy = Number($('#set-daily-energy').value) || 100;
+  state.settings.attr_points_per_level = Number($('#set-attr-ppl').value) || 10;
+  saveState(state);
+  render();
+});
+
+// 导出备份
+$('#btn-export').addEventListener('click', function () {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'levelup_backup_' + todayStr().replace(/-/g, '') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// 导入备份
+$('#btn-import').addEventListener('click', function () {
+  $('#import-file').click();
+});
+$('#import-file').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function () {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (obj && obj.version === 1) {
+        state = normalizeState(obj);
+        saveState(state);
+        render();
+        alert('导入成功');
+      } else {
+        alert('文件格式不正确');
+      }
+    } catch (err) {
+      alert('导入失败：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// 点击弹窗外部关闭
+$('#modal').addEventListener('click', function (e) {
+  if (e.target === this) closeModal();
+});
+
+// 初始化渲染
+render();
+</script>
+</body>
+</html>
