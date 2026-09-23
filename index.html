@@ -215,6 +215,9 @@
     <div class="section-title">本学期目标</div>
     <div id="term-goal-list"></div>
     <button class="btn ghost" data-add-goal="term" style="width:100%; margin-top:8px;">＋ 新增学期目标</button>
+    <div class="section-title">自定义目标</div>
+    <div id="custom-goal-list"></div>
+    <button class="btn ghost" data-add-goal="custom" style="width:100%; margin-top:8px;">＋ 新增自定义目标</button>
   </section>
 </main>
 
@@ -331,6 +334,9 @@ function normalizeState(s) {
     if (g.gold_reward === undefined) g.gold_reward = 0;
     if (g.attr_id === undefined) g.attr_id = null;
     if (g.attr_gain === undefined) g.attr_gain = 0;
+    if (g.target === undefined) g.target = 0;
+    if (g.current === undefined) g.current = 0;
+    if (g.due === undefined) g.due = '';
   });
   if (!Array.isArray(s.attributes)) s.attributes = d.attributes;
   if (!Array.isArray(s.rules)) s.rules = d.rules;
@@ -813,39 +819,84 @@ function renderStats() {
 function renderGoals() {
   const renderList = function (el, period, emptyText) {
     el.innerHTML = '';
-    const items = state.goals.filter(g => g.period === period);
+    const today = todayStr();
+    let items = state.goals.filter(g => g.period === period);
+    // 自定义目标按截止日期从近到远排，无日期排最后
+    if (period === 'custom') {
+      items = items.slice().sort(function (a, b) {
+        const da = a.due || '9999-12-31';
+        const db = b.due || '9999-12-31';
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+    }
     if (items.length === 0) {
       el.innerHTML = '<div class="card" style="color:var(--muted);text-align:center;">' + emptyText + '</div>';
       return;
     }
     for (const g of items) {
       const attrName = g.attr_id ? (state.attributes.find(a => a.id === g.attr_id) || {}).name : '';
+      const isProgress = (g.target || 0) > 0;
+      const doneStyle = g.done ? 'text-decoration:line-through;color:var(--muted);' : '';
+      // 截止日期显示（仅自定义目标）
+      let dueHtml = '';
+      if (period === 'custom' && g.due) {
+        const overdue = g.due < today && !g.done;
+        const diffDays = Math.round((new Date(g.due + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+        const p = g.due.split('-');
+        const dateLabel = Number(p[1]) + '月' + Number(p[2]) + '日';
+        dueHtml = '<div class="task-meta" style="color:' + (overdue ? 'var(--red)' : 'var(--muted)') + ';">截止 ' + dateLabel + ' · ' + (overdue ? '已过期' : '剩 ' + Math.max(0, diffDays) + ' 天') + '</div>';
+      }
       const div = document.createElement('div');
       div.className = 'card task-card';
-      div.innerHTML =
-        '<label class="task-info" style="display:flex;align-items:center;gap:8px;">' +
-          '<input type="checkbox" data-goal-done="' + g.id + '" ' + (g.done ? 'checked' : '') + ' style="width:18px;height:18px;flex:none;">' +
-          '<span style="flex:1;">' +
-            '<span class="task-title" style="' + (g.done ? 'text-decoration:line-through;color:var(--muted);' : '') + '">' + esc(g.title) + '</span>' +
+      if (isProgress) {
+        const cur = g.current || 0;
+        const tgt = g.target || 0;
+        const pct = tgt > 0 ? Math.min(100, Math.round(cur / tgt * 100)) : 0;
+        div.innerHTML =
+          '<div class="task-info">' +
+            '<div class="task-title" style="' + doneStyle + '">' + esc(g.title) + '</div>' +
+            '<div class="task-meta">进度 ' + cur + ' / ' + tgt + '（' + pct + '%）</div>' +
+            '<div class="bar" style="margin-top:6px;"><div class="bar-fill" style="width:' + pct + '%;"></div></div>' +
+            dueHtml +
             '<div class="task-meta">金币+' + (g.gold_reward || 0) + ' · 经验+' + (g.exp_reward || 0) + (attrName ? ' · ' + attrName + '+' + (g.attr_gain || 0) : '') + '</div>' +
-          '</span>' +
-        '</label>' +
-        '<button class="btn small ghost" data-goal-edit="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
-        '<button class="btn small ghost" data-goal-del="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✕</button>';
+          '</div>' +
+          (g.done
+            ? '<span style="color:var(--green);font-size:13px;">已完成</span>'
+            : '<button class="btn small" data-goal-progress="' + g.id + '">＋进度</button>') +
+          '<button class="btn small ghost" data-goal-edit="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
+          '<button class="btn small ghost" data-goal-del="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✕</button>';
+      } else {
+        div.innerHTML =
+          '<label class="task-info" style="display:flex;align-items:center;gap:8px;">' +
+            '<input type="checkbox" data-goal-done="' + g.id + '" ' + (g.done ? 'checked' : '') + ' style="width:18px;height:18px;flex:none;">' +
+            '<span style="flex:1;">' +
+              '<span class="task-title" style="' + doneStyle + '">' + esc(g.title) + '</span>' +
+              dueHtml +
+              '<div class="task-meta">金币+' + (g.gold_reward || 0) + ' · 经验+' + (g.exp_reward || 0) + (attrName ? ' · ' + attrName + '+' + (g.attr_gain || 0) : '') + '</div>' +
+            '</span>' +
+          '</label>' +
+          '<button class="btn small ghost" data-goal-edit="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✏️</button>' +
+          '<button class="btn small ghost" data-goal-del="' + g.id + '" style="padding:5px 8px;margin-left:4px;">✕</button>';
+      }
       el.appendChild(div);
     }
   };
   renderList($('#weekly-goal-list'), 'week', '还没有本周目标');
   renderList($('#term-goal-list'), 'term', '还没有学期目标');
+  renderList($('#custom-goal-list'), 'custom', '还没有自定义目标');
 }
 
 // 目标表单（新增 / 编辑）
 function showGoalForm(period, goalId) {
   const goal = goalId ? state.goals.find(g => g.id === goalId) : null;
+  const isCustom = period === 'custom';
   const attrOptions = state.attributes.map(a => '<option value="'+a.id+'">'+a.name+'</option>').join('');
+  const titleText = goal ? '编辑目标' : (period === 'week' ? '新增本周目标' : (period === 'term' ? '新增学期目标' : '新增自定义目标'));
   openModal(
-    '<h3>' + (goal ? '编辑目标' : (period === 'week' ? '新增本周目标' : '新增学期目标')) + '</h3>' +
-    '<div class="field"><label>目标内容</label><input id="f-title" placeholder="如：本周跑步 3 次" value="'+esc(goal ? goal.title : '')+'"></div>' +
+    '<h3>' + titleText + '</h3>' +
+    '<div class="field"><label>目标内容</label><input id="f-title" placeholder="如：做 10000 道数学题" value="'+esc(goal ? goal.title : '')+'"></div>' +
+    (isCustom ? '<div class="field"><label>截止日期（可选）</label><input id="f-due" type="date" value="'+(goal ? (goal.due || '') : '')+'"></div>' : '') +
+    '<div class="field"><label>目标总量（可选，留空 = 普通勾选目标）</label><input id="f-target" type="number" min="0" placeholder="如：10000" value="'+(goal ? (goal.target || '') : '')+'"></div>' +
     '<div class="field-row">' +
       '<div class="field"><label>金币奖励</label><input id="f-gold" type="number" value="'+(goal ? goal.gold_reward : 30)+'" min="0"></div>' +
       '<div class="field"><label>经验奖励</label><input id="f-exp" type="number" value="'+(goal ? goal.exp_reward : 50)+'" min="0"></div>' +
@@ -862,6 +913,8 @@ function showGoalForm(period, goalId) {
     if (!title) { alert('请填写目标内容'); return; }
     const data = {
       title: title,
+      target: Math.max(0, Math.floor(Number($('#f-target').value) || 0)),
+      due: isCustom ? ($('#f-due').value || '') : (goal ? (goal.due || '') : ''),
       gold_reward: Number($('#f-gold').value) || 0,
       exp_reward: Number($('#f-exp').value) || 0,
       attr_id: $('#f-attr').value || null,
@@ -870,7 +923,7 @@ function showGoalForm(period, goalId) {
     if (goal) {
       Object.assign(goal, data);
     } else {
-      state.goals.push(Object.assign({ id: uid('g'), period: period, done: false }, data));
+      state.goals.push(Object.assign({ id: uid('g'), period: period, done: false, current: 0 }, data));
     }
     saveState(state);
     closeModal();
@@ -1055,26 +1108,32 @@ $('#btn-add-attr').addEventListener('click', function () { showAttrForm(); });
 document.querySelectorAll('[data-add-goal]').forEach(b => {
   b.addEventListener('click', function () { showGoalForm(this.dataset.addGoal); });
 });
-// 目标完成/取消：发/收奖励（不耗体力、不触发签到与活跃度）
+// 目标达成发奖励（不耗体力、不触发签到与活跃度）
+function rewardGoal(g) {
+  const attr = g.attr_id ? state.attributes.find(a => a.id === g.attr_id) : null;
+  state.player.gold += (g.gold_reward || 0);
+  gainExp(state, g.exp_reward || 0);
+  if (attr) attr.value += (g.attr_gain || 0);
+  state.history.push({
+    date: todayStr(),
+    task_id: g.id,
+    gold: g.gold_reward || 0,
+    exp: g.exp_reward || 0,
+    energy: 0,
+    degraded: false,
+    attr_id: g.attr_id || null,
+    attr_gain: g.attr_gain || 0
+  });
+}
+
+// 目标完成/取消：发/收奖励
 function completeGoal(goalId, done) {
   const g = state.goals.find(x => x.id === goalId);
   if (!g || g.done === done) return;
   g.done = done;
   const attr = g.attr_id ? state.attributes.find(a => a.id === g.attr_id) : null;
   if (done) {
-    state.player.gold += (g.gold_reward || 0);
-    gainExp(state, g.exp_reward || 0);
-    if (attr) attr.value += (g.attr_gain || 0);
-    state.history.push({
-      date: todayStr(),
-      task_id: g.id,
-      gold: g.gold_reward || 0,
-      exp: g.exp_reward || 0,
-      energy: 0,
-      degraded: false,
-      attr_id: g.attr_id || null,
-      attr_gain: g.attr_gain || 0
-    });
+    rewardGoal(g);
   } else {
     state.player.gold = Math.max(0, state.player.gold - (g.gold_reward || 0));
     state.player.exp = Math.max(0, state.player.exp - (g.exp_reward || 0));
@@ -1084,7 +1143,58 @@ function completeGoal(goalId, done) {
   saveState(state);
 }
 
+// 进度式目标累加进度，达标自动发一次奖励
+function addGoalProgress(goalId, amount) {
+  const g = state.goals.find(x => x.id === goalId);
+  if (!g || g.done || !((g.target || 0) > 0)) return { ok: false };
+  amount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (amount <= 0) return { ok: false, reason: 'empty' };
+  g.current = (g.current || 0) + amount;
+  let finished = false;
+  if (g.current >= g.target) {
+    g.done = true;
+    rewardGoal(g);
+    finished = true;
+  }
+  saveState(state);
+  return { ok: true, finished: finished };
+}
+
+// 进度录入弹窗
+function showGoalProgressModal(goalId) {
+  const g = state.goals.find(x => x.id === goalId);
+  if (!g) return;
+  const cur = g.current || 0;
+  const tgt = g.target || 0;
+  openModal(
+    '<h3>' + esc(g.title) + '</h3>' +
+    '<div class="field" style="color:var(--muted);">当前进度 ' + cur + ' / ' + tgt + '</div>' +
+    '<div class="field"><label>本次做了多少？</label><input id="f-amount" type="number" min="1" step="1" placeholder="如：10"></div>' +
+    '<div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button><button class="btn" id="f-submit">累加</button></div>'
+  );
+  const input = $('#f-amount');
+  input.focus();
+  $('#f-submit').onclick = function () {
+    const amount = Math.floor(Number(input.value) || 0);
+    if (amount <= 0) { alert('请输入大于 0 的数量'); return; }
+    const r = addGoalProgress(goalId, amount);
+    closeModal();
+    if (!r.ok) { alert('目标已完成或不存在'); return; }
+    if (r.finished) {
+      const attrName = g.attr_id ? (state.attributes.find(a => a.id === g.attr_id) || {}).name : '';
+      const parts = ['金币+' + (g.gold_reward || 0), '经验+' + (g.exp_reward || 0)];
+      if (attrName && g.attr_gain) parts.push(attrName + '+' + g.attr_gain);
+      showToast('目标达成！' + parts.join(' · '));
+    } else {
+      showToast('进度 +' + amount + '，当前 ' + g.current + ' / ' + g.target);
+    }
+    render();
+  };
+}
+
 function handleGoalClick(e) {
+  const prog = e.target.closest('[data-goal-progress]');
+  if (prog) { showGoalProgressModal(prog.dataset.goalProgress); return; }
   const done = e.target.closest('[data-goal-done]');
   if (done) {
     const g = state.goals.find(x => x.id === done.dataset.goalDone);
